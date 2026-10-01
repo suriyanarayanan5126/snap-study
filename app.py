@@ -1,429 +1,620 @@
 import streamlit as st
 from google import genai
-import time
+from email.message import EmailMessage
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 
-# =========================================================
+# ============================================================
 # PAGE CONFIGURATION
-# =========================================================
+# ============================================================
 
 st.set_page_config(
-    page_title="Snap & Study",
-    page_icon="📚"
+    page_title="Suriya AI Chatbot",
+    page_icon="🤖",
+    layout="wide"
 )
 
 
-# =========================================================
-# GEMINI API
-# =========================================================
-
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+# ============================================================
+# GEMINI CONFIGURATION
+# ============================================================
 
 client = genai.Client(
-    api_key=GEMINI_API_KEY
+    api_key=st.secrets["GEMINI_API_KEY"]
 )
 
-
-# =========================================================
-# PAGE TITLE
-# =========================================================
-
-st.title("📚 Snap & Study")
-st.write("Your AI Study Assistant")
+MODEL_NAME = "gemini-3.5-flash-lite"
 
 
-# =========================================================
+# ============================================================
 # SESSION STATE
-# =========================================================
+# ============================================================
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "study_context" not in st.session_state:
-    st.session_state.study_context = ""
+if "image_explanation" not in st.session_state:
+    st.session_state.image_explanation = ""
 
-if "latest_answer" not in st.session_state:
-    st.session_state.latest_answer = ""
-
-
-# =========================================================
-# DISPLAY CHAT HISTORY
-# =========================================================
-
-for message in st.session_state.messages:
-
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
+if "uploaded_image" not in st.session_state:
+    st.session_state.uploaded_image = None
 
 
-# =========================================================
-# IMAGE UPLOAD
-# =========================================================
+# ============================================================
+# SIDEBAR
+# ============================================================
 
-image = st.file_uploader(
-    "📷 Upload your study image",
-    type=["jpg", "jpeg", "png"]
-)
+with st.sidebar:
 
+    st.title("🤖 Suriya AI")
 
-# =========================================================
-# ANALYZE IMAGE
-# =========================================================
-
-if image:
-
-    if st.button("🔍 Analyze Image"):
-
-        contents = [
-            """
-You are a study assistant.
-
-Analyze the uploaded study image.
-
-Identify the topic shown in the image.
-
-Explain the topic as a 5-mark
-Anna University examination answer.
-
-Use simple English.
-
-Give the answer in this structure:
-
-1. Definition
-2. Key Points
-3. Working / Explanation
-4. Advantages / Applications
-5. Conclusion
-"""
-        ]
-
-        contents.append(
-            genai.types.Part.from_bytes(
-                data=image.getvalue(),
-                mime_type=image.type
-            )
-        )
-
-
-        # =================================================
-        # GEMINI REQUEST
-        # =================================================
-
-        answer = None
-
-        for attempt in range(3):
-
-            try:
-
-                response = client.models.generate_content(
-                    model="gemini-3.5-flash-lite",
-                    contents=contents
-                )
-
-                answer = response.text
-
-                break
-
-            except Exception as e:
-
-                error = str(e)
-
-                if "503" in error and attempt < 2:
-
-                    time.sleep(3)
-
-                else:
-
-                    answer = (
-                        "❌ Gemini Error:\n\n"
-                        + error
-                    )
-
-
-        # =================================================
-        # STORE STUDY CONTEXT
-        # =================================================
-
-        # Only store a real AI answer.
-        if answer and not answer.startswith("❌ Gemini Error"):
-
-            st.session_state.study_context = answer
-
-            st.session_state.latest_answer = answer
-
-
-        # =================================================
-        # SAVE CHAT
-        # =================================================
-
-        st.session_state.messages.append(
-            {
-                "role": "user",
-                "content": "📷 I uploaded a study image."
-            }
-        )
-
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": answer
-            }
-        )
-
-
-        # =================================================
-        # SHOW ANSWER
-        # =================================================
-
-        st.write("### 🤖 5-Mark Answer")
-
-        st.write(answer)
-
-
-# =========================================================
-# EMAIL FEATURE
-# =========================================================
-
-# Email section appears only when we have a real AI answer.
-
-if st.session_state.latest_answer:
+    st.caption("Your AI Study Assistant")
 
     st.divider()
 
-    st.subheader("📧 Send Explanation by Email")
+    st.subheader("✨ Features")
 
-    receiver_email = st.text_input(
-        "Enter the email address to receive the explanation"
+    st.write("📷 Image Analysis")
+    st.write("🧠 AI Explanation")
+    st.write("💬 Follow-up Chat")
+    st.write("📚 Study Assistance")
+    st.write("📧 Email Explanation")
+
+    st.divider()
+
+    st.subheader("🚀 How it works")
+
+    st.write("1️⃣ Upload your study image")
+    st.write("2️⃣ Click Analyze Image")
+    st.write("3️⃣ Read the AI explanation")
+    st.write("4️⃣ Ask follow-up questions")
+    st.write("5️⃣ Send explanation by email")
+
+    st.divider()
+
+    st.info(
+        "Snap a question, diagram, notes, "
+        "code or study material and let "
+        "Suriya AI explain it."
     )
 
 
-    if st.button("📨 Send Email"):
+# ============================================================
+# MAIN TITLE
+# ============================================================
 
-        if receiver_email.strip() == "":
+st.title("🤖 Suriya AI Chatbot")
 
-            st.warning(
-                "Please enter a receiver email address."
-            )
+st.subheader("📚 Snap & Study")
 
-        else:
+st.write(
+    "Your simple AI-powered study assistant. "
+    "Upload a question, diagram, notes, code "
+    "or other study material and get an easy explanation."
+)
+
+st.divider()
+
+
+# ============================================================
+# IMAGE UPLOAD
+# ============================================================
+
+st.header("📷 Upload Your Study Material")
+
+uploaded_file = st.file_uploader(
+    "Choose an image",
+    type=[
+        "jpg",
+        "jpeg",
+        "png",
+        "webp"
+    ],
+    help="Upload a clear image of your study material."
+)
+
+
+# ============================================================
+# IMAGE PREVIEW
+# ============================================================
+
+if uploaded_file is not None:
+
+    st.subheader("🖼️ Selected Image")
+
+    st.image(
+        uploaded_file,
+        caption="Your uploaded study material",
+        use_container_width=True
+    )
+
+    st.write("")
+
+    # ========================================================
+    # ANALYZE IMAGE BUTTON
+    # ========================================================
+
+    analyze_button = st.button(
+        "🔍 Analyze Image",
+        type="primary",
+        use_container_width=True
+    )
+
+    if analyze_button:
+
+        with st.spinner(
+            "🧠 Suriya AI is analyzing your image..."
+        ):
 
             try:
 
-                # =================================================
-                # GET GMAIL DETAILS FROM SECRETS
-                # =================================================
+                # Convert uploaded image into Gemini input
+                image_part = genai.types.Part.from_bytes(
+                    data=uploaded_file.getvalue(),
+                    mime_type=uploaded_file.type
+                )
 
-                sender_email = st.secrets["GMAIL_ADDRESS"]
+                # ====================================================
+                # DYNAMIC IMAGE PROMPT
+                # ====================================================
 
-                app_password = st.secrets[
-                    "GMAIL_APP_PASSWORD"
-                ]
+                image_prompt = """
+You are Suriya AI, an AI study assistant.
 
+Analyze the uploaded image carefully.
 
-                # =================================================
-                # EMAIL CONTENT
-                # =================================================
+First identify what the image contains.
 
-                subject = "Snap & Study - AI Study Explanation"
+It may contain:
 
-                body = f"""
-Hello,
+- a question
+- programming code
+- mathematical problem
+- diagram
+- notes
+- definition
+- technical concept
+- table
+- formula
+- exam question
+- other study material
 
-Here is your study explanation from Snap & Study.
+Then provide an explanation that matches the actual
+content of the image.
 
-----------------------------------------
+IMPORTANT:
 
-{st.session_state.latest_answer}
+Do NOT automatically assume that the user wants
+a 5-mark answer.
 
-----------------------------------------
+Do NOT force a fixed answer format.
 
-Generated by Snap & Study.
+The response should depend on the actual content.
+
+If the image contains a QUESTION:
+Solve or explain the question clearly.
+
+If the image contains CODE:
+Explain the code, logic and expected output.
+
+If the image contains a DIAGRAM:
+Explain the diagram and its important components.
+
+If the image contains NOTES:
+Summarize the important points.
+
+If the image contains a MATHEMATICAL PROBLEM:
+Solve it step by step.
+
+If the image contains a CONCEPT:
+Explain the concept clearly with simple examples.
+
+If the image contains a DEFINITION:
+Explain the definition in simple language.
+
+If the image contains a TABLE:
+Explain the important information in the table.
+
+Use simple English.
+
+Make the explanation easy for a student to understand.
+
+Use headings or bullet points when they make
+the explanation easier to read.
+
+Do not add unrelated information.
 """
 
+                # ====================================================
+                # GEMINI IMAGE REQUEST
+                # ====================================================
 
-                # =================================================
-                # CREATE EMAIL
-                # =================================================
-
-                message = MIMEMultipart()
-
-                message["From"] = sender_email
-
-                message["To"] = receiver_email
-
-                message["Subject"] = subject
-
-                message.attach(
-                    MIMEText(body, "plain")
+                response = client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=[
+                        image_part,
+                        image_prompt
+                    ]
                 )
 
+                explanation = response.text
 
-                # =================================================
-                # CONNECT TO GMAIL SMTP
-                # =================================================
+                # ====================================================
+                # SAVE RESULT
+                # ====================================================
 
-                server = smtplib.SMTP(
-                    "smtp.gmail.com",
-                    587
+                st.session_state.image_explanation = explanation
+
+                st.session_state.uploaded_image = (
+                    uploaded_file.getvalue()
                 )
 
-                server.starttls()
+                # Clear previous conversation
+                st.session_state.messages = []
 
-
-                # =================================================
-                # LOGIN
-                # =================================================
-
-                server.login(
-                    sender_email,
-                    app_password
+                # Add AI explanation to chat history
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": explanation
+                    }
                 )
-
-
-                # =================================================
-                # SEND EMAIL
-                # =================================================
-
-                server.sendmail(
-                    sender_email,
-                    receiver_email,
-                    message.as_string()
-                )
-
-
-                # =================================================
-                # CLOSE SERVER
-                # =================================================
-
-                server.quit()
-
 
                 st.success(
-                    "✅ Explanation sent successfully!"
+                    "✅ Image analyzed successfully!"
                 )
-
 
             except Exception as e:
 
                 st.error(
-                    "❌ Email sending failed:\n\n"
+                    "❌ Something went wrong while analyzing the image."
+                )
+
+                st.code(str(e))
+
+
+# ============================================================
+# DISPLAY AI EXPLANATION
+# ============================================================
+
+if st.session_state.image_explanation:
+
+    st.divider()
+
+    st.header("🧠 Suriya AI Explanation")
+
+    st.write(
+        st.session_state.image_explanation
+    )
+
+
+# ============================================================
+# FOLLOW-UP CHAT
+# ============================================================
+
+st.divider()
+
+st.header("💬 Ask Suriya AI")
+
+if st.session_state.image_explanation:
+
+    st.caption(
+        "Ask any follow-up question about the uploaded study material."
+    )
+
+else:
+
+    st.info(
+        "📷 Upload and analyze an image first. "
+        "Then you can ask follow-up questions."
+    )
+
+
+# ============================================================
+# DISPLAY CHAT HISTORY
+# ============================================================
+
+for message in st.session_state.messages:
+
+    if message["role"] == "user":
+
+        with st.chat_message("user"):
+
+            st.write(
+                message["content"]
+            )
+
+    elif message["role"] == "assistant":
+
+        with st.chat_message("assistant"):
+
+            st.write(
+                message["content"]
+            )
+
+
+# ============================================================
+# CHAT INPUT
+# ============================================================
+
+user_question = st.chat_input(
+    "Ask Suriya AI something..."
+)
+
+
+if user_question:
+
+    # ========================================================
+    # SAVE USER MESSAGE
+    # ========================================================
+
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": user_question
+        }
+    )
+
+    # ========================================================
+    # DISPLAY USER MESSAGE
+    # ========================================================
+
+    with st.chat_message("user"):
+
+        st.write(
+            user_question
+        )
+
+
+    # ========================================================
+    # CHECK IMAGE
+    # ========================================================
+
+    if not st.session_state.image_explanation:
+
+        answer = (
+            "📷 Please upload and analyze a study image first. "
+            "Then I can answer questions about it."
+        )
+
+    else:
+
+        # ====================================================
+        # GENERATE FOLLOW-UP ANSWER
+        # ====================================================
+
+        with st.spinner(
+            "🤖 Suriya AI is thinking..."
+        ):
+
+            try:
+
+                chat_prompt = f"""
+You are Suriya AI, a helpful AI study assistant.
+
+The student uploaded study material.
+
+Here is the explanation generated from the image:
+
+-----------------------------
+{st.session_state.image_explanation}
+-----------------------------
+
+The student is now asking:
+
+-----------------------------
+{user_question}
+-----------------------------
+
+Answer the student's question based on
+the uploaded study material and its explanation.
+
+IMPORTANT:
+
+- Do not automatically make the answer a 5-mark answer.
+- Answer according to what the student is asking.
+- Use simple English.
+- Explain step by step when necessary.
+- Give examples when useful.
+- Keep the explanation student-friendly.
+- Do not add unrelated information.
+"""
+
+                response = client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=chat_prompt
+                )
+
+                answer = response.text
+
+            except Exception as e:
+
+                answer = (
+                    "❌ Sorry, something went wrong.\n\n"
                     + str(e)
                 )
 
 
-# =========================================================
-# CONTINUE CONVERSATION
-# =========================================================
+    # ========================================================
+    # SAVE AI ANSWER
+    # ========================================================
 
-question = st.chat_input(
-    "Ask a follow-up question..."
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": answer
+        }
+    )
+
+
+    # ========================================================
+    # DISPLAY AI ANSWER
+    # ========================================================
+
+    with st.chat_message("assistant"):
+
+        st.write(
+            answer
+        )
+
+
+# ============================================================
+# EMAIL SECTION
+# ============================================================
+
+st.divider()
+
+st.header("📧 Send Explanation by Email")
+
+st.write(
+    "You can send the latest AI-generated explanation "
+    "to your email."
 )
 
 
-if question:
+# ============================================================
+# EMAIL INPUT
+# ============================================================
 
-    # =====================================================
-    # CREATE CONTEXT
-    # =====================================================
+email_address = st.text_input(
+    "Enter your email address",
+    placeholder="example@gmail.com"
+)
 
-    if st.session_state.study_context:
 
-        prompt = f"""
-We are studying the topic from the uploaded image.
+# ============================================================
+# SEND EMAIL BUTTON
+# ============================================================
 
-Here is the previous AI explanation:
+send_email_button = st.button(
+    "📨 Send Explanation",
+    use_container_width=True
+)
 
-{st.session_state.study_context}
 
-The student now asks:
+if send_email_button:
 
-{question}
+    # ========================================================
+    # CHECK EXPLANATION
+    # ========================================================
 
-Answer the student's question based on
-the study topic above.
+    if not st.session_state.image_explanation:
 
-Use simple English.
+        st.warning(
+            "⚠️ Please analyze an image first."
+        )
 
-If suitable, give an exam-oriented answer.
-"""
+    # ========================================================
+    # CHECK EMAIL
+    # ========================================================
+
+    elif not email_address:
+
+        st.warning(
+            "⚠️ Please enter your email address."
+        )
 
     else:
 
-        prompt = question
+        try:
+
+            # ==================================================
+            # GET GMAIL SECRETS
+            # ==================================================
+
+            sender_email = st.secrets[
+                "GMAIL_ADDRESS"
+            ]
+
+            app_password = st.secrets[
+                "GMAIL_APP_PASSWORD"
+            ]
 
 
-    # =====================================================
-    # GEMINI REQUEST
-    # =====================================================
+            # ==================================================
+            # CREATE EMAIL
+            # ==================================================
 
-    try:
+            msg = EmailMessage()
 
-        response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
-            contents=prompt
-        )
+            msg["Subject"] = (
+                "Suriya AI - Study Explanation"
+            )
 
-        answer = response.text
+            msg["From"] = sender_email
 
-
-        # =================================================
-        # SAVE USER QUESTION
-        # =================================================
-
-        st.session_state.messages.append(
-            {
-                "role": "user",
-                "content": question
-            }
-        )
+            msg["To"] = email_address
 
 
-        # =================================================
-        # SAVE AI ANSWER
-        # =================================================
+            # ==================================================
+            # EMAIL CONTENT
+            # ==================================================
 
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": answer
-            }
-        )
+            email_body = f"""
+Hello,
 
+Here is your study explanation generated
+by Suriya AI.
 
-        # =================================================
-        # UPDATE CONTEXT
-        # =================================================
+========================================
 
-        st.session_state.study_context += (
-            "\n\nStudent Question:\n"
-            + question
-            + "\n\nAI Answer:\n"
-            + answer
-        )
+{st.session_state.image_explanation}
 
+========================================
 
-        # =================================================
-        # UPDATE LATEST ANSWER
-        # =================================================
+Generated by Suriya AI Chatbot.
+"""
 
-        st.session_state.latest_answer = answer
+            msg.set_content(
+                email_body
+            )
 
 
-        # =================================================
-        # DISPLAY ANSWER
-        # =================================================
+            # ==================================================
+            # CONNECT TO GMAIL
+            # ==================================================
 
-        st.write("### 🤖 AI Answer")
+            with smtplib.SMTP_SSL(
+                "smtp.gmail.com",
+                465
+            ) as smtp:
 
-        st.write(answer)
+                smtp.login(
+                    sender_email,
+                    app_password
+                )
+
+                smtp.send_message(
+                    msg
+                )
 
 
-    except Exception as e:
+            # ==================================================
+            # SUCCESS
+            # ==================================================
 
-        st.error(
-            "❌ Gemini Error:\n\n"
-            + str(e)
-        )
+            st.success(
+                "✅ Explanation sent successfully!"
+            )
+
+
+        except Exception as e:
+
+            st.error(
+                "❌ Email could not be sent."
+            )
+
+            st.code(
+                str(e)
+            )
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.divider()
+
+st.caption(
+    "🤖 Suriya AI Chatbot | Powered by Gemini AI"
+)
